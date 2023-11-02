@@ -1,10 +1,10 @@
-## ---- include = FALSE---------------------------------------------------------
+## ----include = FALSE----------------------------------------------------------
 knitr::opts_chunk$set(
   eval = F,
   collapse = TRUE,
   comment = "#>",
   # fig.width = 4,
-  out.width = '55%'
+  out.width = '65%'
 )
 
 ## ----setup, eval = T----------------------------------------------------------
@@ -12,6 +12,7 @@ library(flps)
 
 ## ----eval = F-----------------------------------------------------------------
 #  devtools::install_github("sooyongl/flps")
+#  install.packages("flps")
 
 ## ----eval = T-----------------------------------------------------------------
 set.seed(10000)
@@ -38,6 +39,7 @@ data.table::data.table(inp_data)
 
 ## ----eval = F-----------------------------------------------------------------
 #  modelBuilder(type = "rasch")
+#  complied <- importModel(type = "rasch")
 
 ## ----eval = F-----------------------------------------------------------------
 #  remove.packages(c("rstan", "StanHeaders"))
@@ -46,12 +48,13 @@ data.table::data.table(inp_data)
 ## ----eval = F-----------------------------------------------------------------
 #  res <- runFLPS(
 #    inp_data = inp_data,
+#    # complied_stan = complied # if necessary
 #    outcome = "Y",
-#    group = "Z",
+#    trt = "Z",
 #    covariate = c("X1"),
 #    lv_type = "rasch",
 #    lv_model = "F =~ v1 + v2 + v3 + v4 + v5 + v6 + v7 + v8 + v9 + v10",
-#    stan_options = list(iter = 1000, warmup = 500, cores = 1, chains = 2)
+#    stan_options = list(iter = 1000, warmup = 500, cores = 1, chains = 1)
 #  )
 
 ## ----eval = F-----------------------------------------------------------------

@@ -6,60 +6,68 @@
 \usage{
 runFLPS(
   inp_data = NULL,
-  custom_data = NULL,
-  custom_stan = NULL,
+  compiled_stan = NULL,
   outcome = NULL,
-  group = NULL,
+  trt = NULL,
   covariate = NULL,
   lv_model = NULL,
   lv_type = NULL,
+  multilevel = FALSE,
+  lv_randomeffect = FALSE,
   priors_input = NULL,
   stan_options = list(),
   ...
 )
 }
 \arguments{
-\item{inp_data}{A matrix or a data frame}
+\item{inp_data}{A matrix or data frame containing the input data.}
 
-\item{custom_data}{A list. should be provided with \code{custom_stan}.}
+\item{compiled_stan}{An object of S4 class stanmodel produced by the
+\code{modelBuilder} function.}
 
-\item{custom_stan}{A string. should be provided with \code{custom_data}.}
+\item{outcome}{A character string specifying the outcome variable's name.}
 
-\item{outcome}{A character indicating the name of an outcome variable}
+\item{trt}{A character string specifying the treatment or control group variable's name.}
 
-\item{group}{A character indicating the name of a treatment/control group variable}
+\item{covariate}{A character string specifying the covariate variable names.}
 
-\item{covariate}{A character indicating the names of covariate variables}
-
-\item{lv_model}{A description of the latent variable model, which is similar
-to the \pkg{lavaan} model syntax.
+\item{lv_model}{A description of the latent variable model using syntax
+akin to the \pkg{lavaan} package. Key operators include:
  \itemize{
-   \item \code{=~} : Specify the association between factors and indicators (e.g., F1 =~ v1 + v2 + v3).
-   \item \code{+} : Specify a series of indicators
-}}
+   \item \code{=~} : Denotes associations between factors and indicators (e.g., F1 =~ v1 + v2 + v3). All indicators associated with the corresponding factor should be
+   written in the same line with \code{+}.
+   \item \code{+} : Specifies a series of indicators.
+ }}
 
-\item{lv_type}{A character indicating the type of latent variable models}
+\item{lv_type}{A character string indicating the type of latent variable models.}
 
-\item{priors_input}{A list of priors. Otherwise, the default priors are used (N(0, 5). It takes three parameter names including \code{tau0}, \code{tau1}, and \code{omega}, which are the difference between groups, the principal effects, and the effect of latent factors on the outcome. If added, the length of \code{tau1} and \code{omega} must be matched with the number of factors.
-Examples of How to specify priors as follows:
+\item{multilevel}{A logical indicating if a multilevel structure is present.}
+
+\item{lv_randomeffect}{A logical indicating whether to estimate random effects for latent variables.}
+
+\item{priors_input}{A list specifying the priors or defaults to N(0, 5) if not provided.
+Relevant parameters: \code{tau0} (group difference), \code{tau1} (principal effects),
+and \code{omega} (effect of latent factors on outcome).
+Ensure that the lengths of \code{tau1} and \code{omega} match the number of factors.
+Examples:
  \itemize{
-   \item \code{list(tau0 = c(0, 1), tau1 = c(0.5, 1))} : The first element is the mean and the second is the variance of normal priors.
-   \item \code{list(tau1 = list(c(0.5, 1), c(-0.4, 1))} : If there's two factors.
-}}
+   \item \code{list(tau0 = c(0, 1), tau1 = c(0.5, 1))} : Mean and variance for normal priors.
+   \item \code{list(tau1 = list(c(0.5, 1), c(-0.4, 1)))} : For two factors.
+ }}
 
-\item{stan_options}{A list containing [rstan::stan()] options, using 'name = value'.}
+\item{stan_options}{A list of options for [rstan::stan()], specified as 'name = value'.}
 
-\item{...}{Additional arguments for latent variable models information (e.g., nclass = 2).}
+\item{...}{Additional parameters for the latent variable models, such as \code{nclass = 2}.}
 }
 \value{
-an object of class \code{flps} which contains a \code{\link[rstan]{stanfit}} object.
-
- \item{call}{argument calls}
- \item{inp_data}{A given data frame}
- \item{flps_model}{a Stan syntax used in [rstan::stan()]}
- \item{flps_data}{a list of data used in [rstan::stan()]}
- \item{flps_fit}{\code{\link[rstan]{stanfit}}}
- \item{time}{a numeric of timing}
+An object of class \code{flps} encompassing a \code{\link[rstan]{stanfit}} object.
+Components include:
+ \item{call}{Function call with arguments.}
+ \item{inp_data}{The input data frame provided.}
+ \item{flps_model}{The Stan syntax used in [rstan::stan()].}
+ \item{flps_data}{Data list used for [rstan::stan()].}
+ \item{flps_fit}{Resulting \code{\link[rstan]{stanfit}} object.}
+ \item{time}{A numeric; Time taken for computation}
 }
 \description{
 Conduct fully latent principal stratification
@@ -83,7 +91,7 @@ inp_data <- flps::makeInpData(
 res <- runFLPS(
    inp_data = inp_data,
    outcome = "Y",
-   group = "Z",
+   trt = "Z",
    covariate = c("X1"),
    lv_type = "rasch",
    lv_model = "F =~ v1 + v2 + v3 + v4 + v5 + v6 + v7 + v8 + v9 + v10",

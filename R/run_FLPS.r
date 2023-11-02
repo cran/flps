@@ -1,36 +1,43 @@
 #' Conduct fully latent principal stratification
 #'
-#' @param inp_data A matrix or a data frame
-#' @param custom_data A list. should be provided with \code{custom_stan}.
-#' @param custom_stan A string. should be provided with \code{custom_data}.
-#' @param outcome A character indicating the name of an outcome variable
-#' @param group A character indicating the name of a treatment/control group variable
-#' @param covariate A character indicating the names of covariate variables
-#' @param lv_model A description of the latent variable model, which is similar
-#' to the \pkg{lavaan} model syntax.
+#' @param inp_data A matrix or data frame containing the input data.
+#' @param compiled_stan An object of S4 class stanmodel produced by the
+#'  \code{modelBuilder} function.
+#' @param outcome A character string specifying the outcome variable's name.
+#' @param trt A character string specifying the treatment or control group variable's name.
+#' @param covariate A character string specifying the covariate variable names.
+#' @param lv_model A description of the latent variable model using syntax
+#' akin to the \pkg{lavaan} package. Key operators include:
 #'  \itemize{
-#'    \item \code{=~} : Specify the association between factors and indicators (e.g., F1 =~ v1 + v2 + v3).
-#'    \item \code{+} : Specify a series of indicators
-#' }
-
-#' @param lv_type  A character indicating the type of latent variable models
-#' @param priors_input A list of priors. Otherwise, the default priors are used (N(0, 5). It takes three parameter names including \code{tau0}, \code{tau1}, and \code{omega}, which are the difference between groups, the principal effects, and the effect of latent factors on the outcome. If added, the length of \code{tau1} and \code{omega} must be matched with the number of factors.
-#' Examples of How to specify priors as follows:
+#'    \item \code{=~} : Denotes associations between factors and indicators (e.g., F1 =~ v1 + v2 + v3). All indicators associated with the corresponding factor should be
+#'    written in the same line with \code{+}.
+#'    \item \code{+} : Specifies a series of indicators.
+#'  }
+#'
+#' @param lv_type A character string indicating the type of latent variable models.
+#' @param multilevel A logical indicating if a multilevel structure is present.
+#' @param lv_randomeffect A logical indicating whether to estimate random effects for latent variables.
+#' @param priors_input A list specifying the priors or defaults to N(0, 5) if not provided.
+#' Relevant parameters: \code{tau0} (group difference), \code{tau1} (principal effects),
+#' and \code{omega} (effect of latent factors on outcome).
+#' Ensure that the lengths of \code{tau1} and \code{omega} match the number of factors.
+#' Examples:
 #'  \itemize{
-#'    \item \code{list(tau0 = c(0, 1), tau1 = c(0.5, 1))} : The first element is the mean and the second is the variance of normal priors.
-#'    \item \code{list(tau1 = list(c(0.5, 1), c(-0.4, 1))} : If there's two factors.
-#' }
+#'    \item \code{list(tau0 = c(0, 1), tau1 = c(0.5, 1))} : Mean and variance for normal priors.
+#'    \item \code{list(tau1 = list(c(0.5, 1), c(-0.4, 1)))} : For two factors.
+#'  }
 #'
-#' @param stan_options A list containing [rstan::stan()] options, using 'name = value'.
-#' @param ... Additional arguments for latent variable models information (e.g., nclass = 2).
-#' @return an object of class \code{flps} which contains a \code{\link[rstan]{stanfit}} object.
+#' @param stan_options A list of options for [rstan::stan()], specified as 'name = value'.
+#' @param ... Additional parameters for the latent variable models, such as \code{nclass = 2}.
+#' @return An object of class \code{flps} encompassing a \code{\link[rstan]{stanfit}} object.
+#' Components include:
+#'  \item{call}{Function call with arguments.}
+#'  \item{inp_data}{The input data frame provided.}
+#'  \item{flps_model}{The Stan syntax used in [rstan::stan()].}
+#'  \item{flps_data}{Data list used for [rstan::stan()].}
+#'  \item{flps_fit}{Resulting \code{\link[rstan]{stanfit}} object.}
+#'  \item{time}{A numeric; Time taken for computation}
 #'
-#'  \item{call}{argument calls}
-#'  \item{inp_data}{A given data frame}
-#'  \item{flps_model}{a Stan syntax used in [rstan::stan()]}
-#'  \item{flps_data}{a list of data used in [rstan::stan()]}
-#'  \item{flps_fit}{\code{\link[rstan]{stanfit}}}
-#'  \item{time}{a numeric of timing}
 #'
 #' @examples
 #' \donttest{
@@ -51,7 +58,7 @@
 #' res <- runFLPS(
 #'    inp_data = inp_data,
 #'    outcome = "Y",
-#'    group = "Z",
+#'    trt = "Z",
 #'    covariate = c("X1"),
 #'    lv_type = "rasch",
 #'    lv_model = "F =~ v1 + v2 + v3 + v4 + v5 + v6 + v7 + v8 + v9 + v10",
@@ -63,13 +70,14 @@
 #' @seealso [rstan::stan()]
 #' @export
 runFLPS <- function(inp_data = NULL,
-                    custom_data = NULL,
-                    custom_stan = NULL,
+                    compiled_stan = NULL,
                     outcome = NULL,
-                    group = NULL,
+                    trt = NULL,
                     covariate = NULL,
                     lv_model = NULL,
                     lv_type = NULL,
+                    multilevel = FALSE,
+                    lv_randomeffect = FALSE,
                     priors_input = NULL,
                     stan_options = list(),
                     ...
@@ -81,31 +89,27 @@ runFLPS <- function(inp_data = NULL,
   # call ---------------------------------------------------------------
   .call <- match.call()
   argslist <- as.list(.call[-1])
+  all_args <- as.list(environment())
+  all_args <- append(all_args, list(...))
 
   # validate -----------------------------------------------------------
-  validate_data(inp_data, custom_data, custom_stan)
-
+  validate_data(all_args)
 
   # data and code -------------------------------------------------------
-  if(is.null(inp_data) && !is.null(custom_data) && !is.null(custom_stan)) {
-    flps_data_class <- makeFLPSdata(custom_data, outcome, group, covariate,
-                                    lv_model, lv_type, custom = TRUE)
+  flps_data_class <- makeFLPSdata(inp_data, outcome, trt, covariate,
+                                  lv_model, lv_type, multilevel,
+                                  nclass = all_args$nclass,
+                                  group_id = all_args$group_id)
 
-    flps_model <- custom_stan
-  }
+  if(is.null(compiled_stan)) {
+    flps_model <- loadRstan(flps_data_class$lv_type, multilevel, lv_randomeffect)
 
-  if (!is.null(inp_data) && is.null(custom_data)) {
-    flps_data_class <- makeFLPSdata(inp_data, outcome, group, covariate,
-                                    lv_model, lv_type)
-
-    flps_model <- loadRstan(lv_type = flps_data_class$lv_type)
-    # flps_model <- paste(readLines("inst/stan/flps_IRT_multi.stan"), collapse = "\n")
-    # flps_model <- mkStanModel(lv_type = flps_data_class$lv_type)
+  } else {
+    flps_model <- compiled_stan
   }
 
   # flps_model
   # fit FLPS --------------------------------------------------------------
-
   # STVAL
   # init.rlnorm <- function(n, m, v) {
   #   a1 <- rlnorm(n, m, v)
@@ -121,15 +125,12 @@ runFLPS <- function(inp_data = NULL,
 
 
   if(!inherits(flps_model, "stanmodel")) {
-
     message("Compiling Stan code...")
-
     ## S3
     stan_options <- stanOptions(stan_options, model_code = flps_model,
                                 data = flps_data_class$stan_data)
 
     # Prior setting
-    # argslist$lv_model <- paste0("F =~ ", paste(paste0("v", 1:10), collapse = "+"))
     stan_options <- setPriors(priors_input, lv_model, stan_options)
     flps_fit <-  try(do.call(rstan::stan, stan_options))
 
@@ -139,7 +140,6 @@ runFLPS <- function(inp_data = NULL,
                                 data = flps_data_class$stan_data)
 
     # Prior setting
-    # argslist$lv_model <- paste0("F =~ ", paste(paste0("v", 1:10), collapse = "+"))
     stan_options <- setPriors(priors_input, lv_model, stan_options)
     flps_fit <-  try(do.call(rstan::sampling, stan_options))
   }
@@ -156,7 +156,6 @@ runFLPS <- function(inp_data = NULL,
                                 data = flps_data_class$stan_data)
 
     # Prior setting
-    # argslist$lv_model <- paste0("F =~ ", paste(paste0("v", 1:10), collapse = "+"))
     stan_options <- setPriors(priors_input, lv_model, stan_options)
     flps_fit <-  try(do.call(rstan::stan, stan_options))
   }
