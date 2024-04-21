@@ -25,12 +25,12 @@ data {
 
 parameters{
   real<lower=0, upper=1> p[nclass, nitem];  // Item Response probabilities
-  real<lower=0, upper=1> mu_p;  // hyper parameter
-  real<lower=0> sigma_p;        // hyper parameter
+  //real<lower=0, upper=1> mu_p;  // hyper parameter
+  //real<lower=0> sigma_p;        // hyper parameter
   
   real alpha[nclass];             // Intercept for class proportion
   vector[ncov] betaY;     // Coefficients for the outcome Y
-  vector[ncov] betaU;     // Coefficients for class membership
+  vector[ncov] gammaU;     // Coefficients for class membership
     
   vector[nclass] tau0;           // Intercept for Y for each class
   vector[nclass] tau1;           // Coefficient for Z for each class
@@ -39,17 +39,26 @@ parameters{
 }
 
 transformed parameters{
-  matrix[nstud, nclass] eta; // Linear predictor for class membership
+  matrix[nstud, nclass] unlog; // Linear predictor for class membership
   vector[nclass] nu[nstud];  // Probability of class membership for all students
 
+  real[nclass - 1] b1;
+  real[nclass - 1] a1;
+  
   // Individual class membership probabilities conditional on covariates
   for (n in 1:nstud) {
     for (k in 1:nclass) {
-      eta[n, k] = alpha[k] + dot_product(X[n], betaU);
+      unlog[n, k] = alpha[k] + dot_product(X[n], gammaU);
     }
-    nu[n] = softmax(to_vector(eta[n, ]));
+    nu[n] = softmax(to_vector(unlog[n, ]));
   }
 
+  for(k in 2:(nclass)) {
+    // PS effects-Difference in Y on Z coefficient between classes
+    b1[k-1] = tau1[k] - tau1[1]; 
+    // Omega-Difference in intercept in Y between classes
+    a1[k-1] = tau0[k] - tau0[1]; 
+  }
 }
 
 model {
@@ -65,7 +74,8 @@ model {
     
     for (k in 1:nclass) {
       //real mu_class = tau00[k] + tau01[k] * Z[n] + cov_eff[n];
-      lpdf_class[k] = log(nu[n][k]) + normal_lpdf(Y[n] | tau0[k] + tau1[k] * Z[n] + cov_eff[n], sigY[k]);
+      //lpdf_class[k] = log(nu[n][k]) + normal_lpdf(Y[n] | tau0[k] + tau1[k] * Z[n] + cov_eff[n], sigY[k]);
+	  lpdf_class[k] = normal_lpdf(Y[n] | tau0[k] + tau1[k] * Z[n] + cov_eff[n], sigY[k]);
     }
     
     target += log_sum_exp(lpdf_class);
@@ -85,18 +95,19 @@ model {
  
  // Priors
  alpha ~ normal(0, 2.5);
- betaU ~ normal(0, 5);
+ gammaU ~ normal(0, 5);
  
  betaY ~ normal(0, 2);
  tau0 ~ normal(0, 2);
- tau1 ~ normal(0, 1);
+ tau1 ~ normal(0, 2.5);
  sigY ~ cauchy(0, 2.5);
  
-  mu_p ~ beta(2, 2);
-  sigma_p ~ beta(0.5, 0.5);
+  //mu_p ~ beta(2, 2);
+  //sigma_p ~ beta(0.5, 0.5);
   for (k in 1:nclass) {
     for (j in 1:nitem) {
-      p[k, j] ~ beta(mu_p * (1/sigma_p^2 - 1), (1 - mu_p) * (1/sigma_p^2 - 1));
+      //p[k, j] ~ beta(mu_p * (1/sigma_p^2 - 1), (1 - mu_p) * (1/sigma_p^2 - 1));
+	  p[k, j] ~ beta(0.5, 0.5);
    }
  }
 
